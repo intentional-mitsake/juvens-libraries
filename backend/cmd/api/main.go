@@ -1,14 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"juvens-library/internal/routes"
 	"log/slog"
 	"net/http"
 	"os"
+
+	"golang.org/x/oauth2"
 )
 
 func main() {
+	ctx := context.Background()
+	oauthCfg := &oauth2.Config{}
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8848"
