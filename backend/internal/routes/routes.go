@@ -20,6 +20,8 @@ func CreateRouter() http.Handler {
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	//fmt.Fprintln(w, "Welcome")
+	tmpl := "../public/index.html" //use diff url for prod, this is for dev
+	http.ServeFile(w, r, tmpl)
 }
 
 func oauthHandler(w http.ResponseWriter, r *http.Request) {
@@ -43,5 +45,18 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	// token is a struct that contains the access token, refresh token, expiry time, etc.
 	//fmt.Fprintf(w, "Token: %v", token)
 	//encrypt the access sdn refresh tokens, save them in the database, and set a cookie with the user ID or session ID
-	services.ProcessTokens(token)
+	// redirect the user to the home page and set a cookie with the user ID or session ID
+	sessionID, err := services.ProcessTokens(token)
+	if err != nil {
+		fmt.Fprintf(w, "Failed to process tokens: %v", err)
+		return
+	}
+	fmt.Printf("Session ID: %s", sessionID)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    sessionID,
+		HttpOnly: true, // this means the cookie cannot be accessed by JavaScript, which helps prevent XSS attacks from stealing the session ID
+		Secure:   true, // this means the cookie will only be sent over HTTPS, which helps prevent man-in-the-middle attacks from stealing the session ID, make sure to use HTTPS in production
+	}) // basically we create a cookie attached to the w (the response to browser)
+	http.Redirect(w, r, "/", http.StatusPermanentRedirect) // redirect user to "/" after setting the cookie, the browser will include the cookie in the request to "/", so we can use it to identify the user and show them their personalized content
 }
