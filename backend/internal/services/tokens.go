@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"golang.org/x/oauth2"
 )
 
 func ProcessTokens(tokens *oauth2.Token) (string, error) {
-	//refreshToken := tokens.RefreshToken
+	salt := os.Getenv("SALT")
+	refreshToken := tokens.RefreshToken
 	accessToken := tokens.AccessToken
 	//expiry := tokens.Expiry
 	_, err := GetUserInfo(accessToken)
@@ -19,6 +21,19 @@ func ProcessTokens(tokens *oauth2.Token) (string, error) {
 		fmt.Printf("Error fetching user info: %v\n", err)
 		return "", err
 	}
+	encAccessToken, err := EncyptToken(accessToken, []byte(salt))
+	if err != nil {
+		fmt.Printf("Error encrypting access token: %v\n", err)
+		return "", err
+	}
+	fmt.Printf("Encrypted Access Token: %s\n", encAccessToken)
+	encRefreshToken, err := EncyptToken(refreshToken, []byte(salt))
+	if err != nil {
+		fmt.Printf("Error encrypting refresh token: %v\n", err)
+		return "", err
+	}
+	fmt.Printf("Encrypted Refresh Token: %s\n", encRefreshToken)
+	// session id
 	sessionID, err := generateSecureID()
 	if err != nil {
 		fmt.Printf("Error generating session ID: %v\n", err)
