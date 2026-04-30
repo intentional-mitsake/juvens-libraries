@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"juvens-library/internal/auth"
+	"juvens-library/internal/services"
 	"net/http"
 
 	"golang.org/x/oauth2"
@@ -42,5 +43,5 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	// token is a struct that contains the access token, refresh token, expiry time, etc.
 	//fmt.Fprintf(w, "Token: %v", token)
 	//encrypt the access sdn refresh tokens, save them in the database, and set a cookie with the user ID or session ID
-
+	services.ProcessTokens(token)
 }
