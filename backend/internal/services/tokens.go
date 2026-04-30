@@ -3,6 +3,7 @@ package services
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,16 +12,39 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// fot the google response data
+type Response struct {
+	id             string
+	Email          string
+	Verified_email bool
+	Name           string
+	Given_name     string
+	Family_name    string
+	Picture        string
+}
+
 func ProcessTokens(tokens *oauth2.Token) (string, error) {
 	salt := os.Getenv("SALT")
 	refreshToken := tokens.RefreshToken
 	accessToken := tokens.AccessToken
 	//expiry := tokens.Expiry
-	_, err := GetUserInfo(accessToken)
+
+	//USERINFO
+	responsedata, err := GetUserInfo(accessToken)
 	if err != nil {
 		fmt.Printf("Error fetching user info: %v\n", err)
 		return "", err
 	}
+	userinfor := Response{}
+	err = json.Unmarshal(responsedata, &userinfor) // unmarshal the response data into a struct, initially it was a byte slice
+	if err != nil {
+		fmt.Printf("Error unmarshalling user info: %v\n", err)
+		return "", err
+	}
+	fmt.Printf("Email: %s\n", userinfor.Email)
+	fmt.Printf("Name: %s\n", userinfor.Name)
+
+	//ENC/DEC
 	encAccessToken, err := EncyptToken(accessToken, []byte(salt))
 	if err != nil {
 		fmt.Printf("Error encrypting access token: %v\n", err)
@@ -33,6 +57,7 @@ func ProcessTokens(tokens *oauth2.Token) (string, error) {
 		return "", err
 	}
 	fmt.Printf("Encrypted Refresh Token: %s\n", encRefreshToken)
+
 	// session id
 	sessionID, err := generateSecureID()
 	if err != nil {
@@ -42,12 +67,12 @@ func ProcessTokens(tokens *oauth2.Token) (string, error) {
 	return sessionID, nil
 }
 
-func GetUserInfo(accessToken string) (string, error) {
+func GetUserInfo(accessToken string) ([]byte, error) {
 	// "https://www.googleapis.com/oauth2/v2" is the endpoint for getting user info with an access token, it has diff scopes, /userinfo is the endpoint for getting user info with an access token, it has diff scopes, we need to use the one that matches the scopes we requested in the OAuth config
 	info, err := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil) //here we create the request to the user info endpoint, we will set the Authorization
 	if err != nil {
 		fmt.Printf("Error creating request: %v\n", err)
-		return "", err
+		return nil, err
 	}
 	// info is a request, we need to set the Authorization header to "Bearer <access_token>" so that the Google API knows we're authenticated and can return the user info
 	// the actual user info is in the response body, we can read it and parse it as JSON to get the user's email, name, etc.
@@ -57,17 +82,17 @@ func GetUserInfo(accessToken string) (string, error) {
 	resp, err := client.Do(info)
 	if err != nil {
 		fmt.Printf("Error making request: %v\n", err)
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	fmt.Printf("Response status: %s\n", resp.Status)
 	responseData, err := io.ReadAll(resp.Body) // use io.ReadAll to read the response body, it returns a byte slice and an error, we can convert the byte slice to a string to see the user info in the response
 	if err != nil {
 		fmt.Printf("Error reading response body: %v\n", err)
-		return "", err
+		return nil, err
 	}
-	fmt.Printf("Response body: %s\n", responseData)
-	return string(responseData), nil
+	//fmt.Printf("Response body: %s\n", responseData)
+	return responseData, nil
 }
 func generateSecureID() (string, error) {
 	b := make([]byte, 32)  // generate 32 random bytes, which will give us a 256-bit ID, which is sufficiently secure for session IDs
