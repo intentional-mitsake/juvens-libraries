@@ -43,13 +43,13 @@ func CloseDB(db *sql.DB) error {
 func InitializeDB(db *sql.DB) error {
 	query := `
     CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         email TEXT UNIQUE NOT NULL,
 		username TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS tokens (
-        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
         access_token TEXT NOT NULL,
         refresh_token TEXT NOT NULL,
         expiry TIMESTAMPTZ NOT NULL,
@@ -57,14 +57,14 @@ func InitializeDB(db *sql.DB) error {
     );
 
     CREATE TABLE IF NOT EXISTS books (
-        id TEXT PRIMARY KEY,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title TEXT NOT NULL,
         author TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS user_books (
-        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
-        book_id TEXT REFERENCES books(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        book_id UUID REFERENCES books(id) ON DELETE CASCADE,
         started_at TIMESTAMPTZ,
         finished_at TIMESTAMPTZ,
         rating INT DEFAULT 0 CHECK (rating >= 0 AND rating <= 5),
@@ -84,17 +84,22 @@ func InitializeDB(db *sql.DB) error {
 }
 
 func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, hashedSessionID string, expiry time.Time) error {
-	query := `
-		INSERT INTO users (id, email, username) 
-		VALUES ($1, $2, $3)
-		ON CONFLICT (email) DO NOTHING
-
-		INSERT INTO tokens (user_id, access_token, refresh_token, expiry, session_id)
-		VALUES ($1, $4, $5, $6, $7)
+	userquery := `
+		INSERT INTO users (email, username) 
+		VALUES ($1, $2)
+		ON CONFLICT (email) DO NOTHING;
+		`
+	tokenquery := `
+		INSERT INTO tokens (access_token, refresh_token, expiry, session_id)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (session_id) DO UPDATE 
-		SET access_token = EXCLUDED.access_token, refresh_token = EXCLUDED.refresh_token, expiry = EXCLUDED.expiry
+		SET access_token = EXCLUDED.access_token, refresh_token = EXCLUDED.refresh_token, expiry = EXCLUDED.expiry;
 	`
-	_, err := db.Exec(query, hashedSessionID, email, name, encAccessToken, encRefreshToken, expiry, hashedSessionID)
+	_, err := db.Exec(userquery, email, name)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(tokenquery, encAccessToken, encRefreshToken, expiry, hashedSessionID)
 	if err != nil {
 		return err
 	}

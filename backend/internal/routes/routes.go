@@ -51,6 +51,7 @@ func (rt *Router) indexHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// if valid, load the index page.
+		logger.Info("Valid session ID, loading index page", "session_id", cookie.Value)
 		tmpl := "../public/index.html" // if cookie valid, load index page
 		http.ServeFile(w, r, tmpl)
 	}
