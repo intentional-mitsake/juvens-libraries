@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -23,7 +24,16 @@ type Response struct {
 	Picture        string
 }
 
-func ProcessTokens(tokens *oauth2.Token) (string, error) {
+type UserInfo struct {
+	Email           string
+	Name            string
+	EncAccessToken  string
+	EncRefreshToken string
+	Expiry          time.Time
+	SessionID       string
+}
+
+func ProcessTokens(tokens *oauth2.Token) (UserInfo, error) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 	salt := os.Getenv("SALT")
 	refreshToken := tokens.RefreshToken
@@ -34,13 +44,13 @@ func ProcessTokens(tokens *oauth2.Token) (string, error) {
 	responsedata, err := GetUserInfo(accessToken)
 	if err != nil {
 		logger.Error("Failed to get user info", "error", err)
-		return "", err
+		return UserInfo{}, err
 	}
 	userinfor := Response{}
 	err = json.Unmarshal(responsedata, &userinfor) // unmarshal the response data into a struct, initially it was a byte slice
 	if err != nil {
 		logger.Error("Failed to unmarshal user info", "error", err)
-		return "", err
+		return UserInfo{}, err
 	}
 	logger.Info("User info retrieved", "email", userinfor.Email, "name", userinfor.Name)
 
@@ -48,13 +58,13 @@ func ProcessTokens(tokens *oauth2.Token) (string, error) {
 	encAccessToken, err := EncyptToken(accessToken, []byte(salt))
 	if err != nil {
 		logger.Error("Failed to encrypt access token", "error", err)
-		return "", err
+		return UserInfo{}, err
 	}
 	logger.Info("Access token encrypted", "token", encAccessToken)
 	encRefreshToken, err := EncyptToken(refreshToken, []byte(salt))
 	if err != nil {
 		logger.Error("Failed to encrypt refresh token", "error", err)
-		return "", err
+		return UserInfo{}, err
 	}
 	logger.Info("Refresh token encrypted", "token", encRefreshToken)
 
@@ -62,9 +72,16 @@ func ProcessTokens(tokens *oauth2.Token) (string, error) {
 	sessionID, err := generateSecureID()
 	if err != nil {
 		logger.Error("Failed to generate session ID", "error", err)
-		return "", err
+		return UserInfo{}, err
 	}
-	return sessionID, nil
+	return UserInfo{
+		Email:           userinfor.Email,
+		Name:            userinfor.Name,
+		EncAccessToken:  encAccessToken,
+		EncRefreshToken: encRefreshToken,
+		Expiry:          tokens.Expiry,
+		SessionID:       sessionID,
+	}, nil
 }
 
 func GetUserInfo(accessToken string) ([]byte, error) {
@@ -100,4 +117,9 @@ func generateSecureID() (string, error) {
 	}
 	// base64 as it encodes binary data into a string format that is safe for URLs and cookies, and it also makes the session ID shorter than if we were to encode it as hex, which would be 64 characters long for 32 bytes
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+func ValidateSessionID(sessionID string) bool {
+	// here we would check if the session ID exists in the database and is valid (not expired, etc.)
+	return true
 }
