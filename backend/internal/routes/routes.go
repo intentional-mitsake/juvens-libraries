@@ -2,10 +2,11 @@ package routes
 
 import (
 	"context"
-	"fmt"
 	"juvens-library/internal/auth"
 	"juvens-library/internal/services"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"golang.org/x/oauth2"
 )
@@ -34,12 +35,13 @@ func oauthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 	app := auth.GoogleOAuth()
 	// get the code from the query parameters
 	code := r.URL.Query().Get("code")
 	token, err := app.Config.Exchange(context.Background(), code)
 	if err != nil {
-		fmt.Fprintf(w, "Failed to exchange token: %v", err)
+		logger.Error("Failed to exchange code for token", "error", err)
 		return
 	}
 	// token is a struct that contains the access token, refresh token, expiry time, etc.
@@ -48,10 +50,10 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	// redirect the user to the home page and set a cookie with the user ID or session ID
 	sessionID, err := services.ProcessTokens(token)
 	if err != nil {
-		fmt.Fprintf(w, "Failed to process tokens: %v", err)
+		logger.Error("Failed to process tokens", "error", err)
 		return
 	}
-	fmt.Printf("Session ID: %s", sessionID)
+	logger.Info("Session ID created", "session_id", sessionID)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_id",
 		Value:    sessionID, // raw session id on cookie, hashed session id in database
@@ -60,10 +62,10 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	}) // basically we create a cookie attached to the w (the response to browser)
 	hashedSessionID, err := services.HashSessionID(sessionID)
 	if err != nil {
-		fmt.Fprintf(w, "Failed to hash session ID: %v", err)
+		logger.Error("Failed to hash session ID", "error", err)
 		return
 	}
-	fmt.Printf("Hashed Session ID: %s", hashedSessionID)
+	logger.Info("Hashed Session ID created", "hashed_session_id", hashedSessionID)
 	// redirect the user to the home page
 	http.Redirect(w, r, "/", http.StatusPermanentRedirect) // redirect user to "/" after setting the cookie, the browser will include the cookie in the request to "/", so we can use it to identify the user and show them their personalized content
 }
