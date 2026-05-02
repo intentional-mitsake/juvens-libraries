@@ -141,3 +141,18 @@ func ValidateSessionID(db *sql.DB, sessionID string) (bool, error) {
 	}
 	return true, nil
 }
+
+func UserExists(db *sql.DB, email string) (bool, error) {
+	var dummy int
+	query := "SELECT 1 FROM users WHERE email = $1"
+	err := db.QueryRow(query, email).Scan(&dummy)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// no match found
+			return false, nil
+		}
+		// database error
+		return false, err
+	}
+	return true, nil
+}

@@ -103,6 +103,15 @@ func (rt *Router) callbackHandler(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Failed to hash session ID", "error", err)
 		return
 	}
+	olduser, err := database.UserExists(rt.DB, userinfo.Email)
+	if err != nil {
+		logger.Error("Failed to check if user exists", "error", err)
+		return
+	}
+	if !olduser {
+		//i maybe a tutorial here or a welcome message for new users, but for now we will just log it
+		logger.Info("New user logged in", "email", userinfo.Email)
+	}
 	err = database.InsertLoginInfo(rt.DB, userinfo.Email, userinfo.Name, userinfo.EncAccessToken, userinfo.EncRefreshToken, hashedSessionID, userinfo.Expiry)
 	if err != nil {
 		logger.Error("Failed to insert login info", "error", err)
