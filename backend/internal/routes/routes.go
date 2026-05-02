@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"juvens-library/internal/auth"
+	"juvens-library/internal/database"
 	"juvens-library/internal/services"
 	"log/slog"
 	"net/http"
@@ -38,10 +39,20 @@ func (rt *Router) indexHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// if there is cookie, check if its valid
 		logger.Info("Session ID cookie found", "session_id", cookie)
-		/*
-			tmpl := "../public/index.html" // if cookie valid, load index page
-			http.ServeFile(w, r, tmpl)
-		*/
+		valid, err := database.ValidateSessionID(rt.DB, cookie.Value)
+		if err != nil { // error in validating session ID, which likely means a database error
+			logger.Error("Failed to validate session ID", "error", err)
+			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
+			return
+		}
+		if !valid { // session ID is not valid, no db error, just means the session ID is not in the database or expired
+			logger.Info("Invalid session ID", "session_id", cookie.Value)
+			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
+			return
+		}
+		// if valid, load the index page.
+		tmpl := "../public/index.html" // if cookie valid, load index page
+		http.ServeFile(w, r, tmpl)
 	}
 }
 
@@ -91,7 +102,11 @@ func (rt *Router) callbackHandler(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Failed to hash session ID", "error", err)
 		return
 	}
-	logger.Info("Session ID hashed", "session_id", hashedSessionID)
+	err = database.InsertLoginInfo(rt.DB, userinfo.Email, userinfo.Name, userinfo.EncAccessToken, userinfo.EncRefreshToken, hashedSessionID, userinfo.Expiry)
+	if err != nil {
+		logger.Error("Failed to insert login info", "error", err)
+		return
+	}
 	// redirect the user to the home page
 	http.Redirect(w, r, "/", http.StatusPermanentRedirect) // redirect user to "/" after setting the cookie, the browser will include the cookie in the request to "/", so we can use it to identify the user and show them their personalized content
 }

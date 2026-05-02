@@ -118,8 +118,3 @@ func generateSecureID() (string, error) {
 	// base64 as it encodes binary data into a string format that is safe for URLs and cookies, and it also makes the session ID shorter than if we were to encode it as hex, which would be 64 characters long for 32 bytes
 	return base64.URLEncoding.EncodeToString(b), nil
 }
-
-func ValidateSessionID(sessionID string) bool {
-	// here we would check if the session ID exists in the database and is valid (not expired, etc.)
-	return true
-}

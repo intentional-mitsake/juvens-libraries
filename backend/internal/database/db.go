@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"juvens-library/internal/config"
+	"juvens-library/internal/services"
 	"log/slog"
 	"os"
 
@@ -98,4 +99,23 @@ func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, h
 		return err
 	}
 	return nil
+}
+
+func ValidateSessionID(db *sql.DB, sessionID string) (bool, error) {
+	hashedSessionID, err := services.HashSessionID(sessionID)
+	if err != nil {
+		return false, err
+	}
+	var dummy int
+	query := "SELECT 1 FROM tokens WHERE session_id = $1"
+	err = db.QueryRow(query, hashedSessionID).Scan(&dummy)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// no match found
+			return false, nil
+		}
+		// database error
+		return false, err
+	}
+	return true, nil
 }

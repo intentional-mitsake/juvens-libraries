@@ -28,7 +28,7 @@ func main() {
 		}
 	}()
 
-	router := routes.CreateRouter(dbObj)
+	router := routes.CreateRouter(dbObj) //inject teh database connection itno the router so that handlers can use it.
 	//listenandserve only returns error, thus unless the server crashes or we shut it, this wont be
 	//displayed if its after the func
 	logger.Info("Server starting", "address", addr)
