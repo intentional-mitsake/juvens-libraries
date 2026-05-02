@@ -67,24 +67,25 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	//fmt.Fprintf(w, "Token: %v", token)
 	//encrypt the access sdn refresh tokens, save them in the database, and set a cookie with the user ID or session ID
 	// redirect the user to the home page and set a cookie with the user ID or session ID
-	sessionID, err := services.ProcessTokens(token)
+	userinfo, err := services.ProcessTokens(token)
 	if err != nil {
 		logger.Error("Failed to process tokens", "error", err)
 		return
 	}
-	logger.Info("Session ID created", "session_id", sessionID)
+	logger.Info("Session ID created")
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_id",
-		Value:    sessionID, // raw session id on cookie, hashed session id in database
-		HttpOnly: true,      // this means the cookie cannot be accessed by JavaScript, which helps prevent XSS attacks from stealing the session ID
-		Secure:   true,      // this means the cookie will only be sent over HTTPS, which helps prevent man-in-the-middle attacks from stealing the session ID, make sure to use HTTPS in production
+		Value:    userinfo.SessionID, // raw session id on cookie, hashed session id in database
+		Path:     "/",                // cookie is visible to /
+		HttpOnly: true,               // this means the cookie cannot be accessed by JavaScript, which helps prevent XSS attacks from stealing the session ID
+		Secure:   true,               // this means the cookie will only be sent over HTTPS, which helps prevent man-in-the-middle attacks from stealing the session ID, make sure to use HTTPS in production
 	}) // basically we create a cookie attached to the w (the response to browser)
-	hashedSessionID, err := services.HashSessionID(sessionID)
+	hashedSessionID, err := services.HashSessionID(userinfo.SessionID)
 	if err != nil {
 		logger.Error("Failed to hash session ID", "error", err)
 		return
 	}
-	logger.Info("Hashed Session ID created", "hashed_session_id", hashedSessionID)
+	logger.Info("Session ID hashed", "session_id", hashedSessionID)
 	// redirect the user to the home page
 	http.Redirect(w, r, "/", http.StatusPermanentRedirect) // redirect user to "/" after setting the cookie, the browser will include the cookie in the request to "/", so we can use it to identify the user and show them their personalized content
 }
