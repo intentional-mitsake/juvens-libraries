@@ -2,10 +2,12 @@ package database
 
 import (
 	"database/sql"
+
 	"juvens-library/internal/config"
 	"log/slog"
 	"os"
-	//"github.com/lib/pq"
+
+	_ "github.com/lib/pq"
 )
 
 var logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
@@ -14,12 +16,15 @@ func OpenDB() (*sql.DB, error) {
 	dbCnfg := config.LoadDBConfig()
 	db, err := sql.Open(dbCnfg.DBDriver, dbCnfg.DBSource)
 	if err != nil {
-		logger.Error("Failed to open database", "error", err)
 		return nil, err
 	}
+	err = InitializeDB(db)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("Database initialized")
 	p := db.Ping()
 	if p != nil {
-		logger.Error("Failed to ping database", "error", p)
 		return nil, p
 	}
 	return db, nil
@@ -28,17 +33,17 @@ func OpenDB() (*sql.DB, error) {
 func CloseDB(db *sql.DB) error {
 	err := db.Close()
 	if err != nil {
-		logger.Error("Failed to close database", "error", err)
 		return err
 	}
 	return nil
 }
 
-func CreateTables(db *sql.DB) error {
+func InitializeDB(db *sql.DB) error {
 	query := `
     CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL
+        email TEXT UNIQUE NOT NULL,
+		username TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS tokens (
@@ -61,14 +66,14 @@ func CreateTables(db *sql.DB) error {
         started_at TIMESTAMPTZ,
         finished_at TIMESTAMPTZ,
         rating INT DEFAULT 0 CHECK (rating >= 0 AND rating <= 5),
-        rstatus INT DEFAULT 0,
-        PRIMARY KEY (user_id, book_id)
+        rstatus INT DEFAULT 0
+		PRIMARY KEY (user_id, book_id)
     );
     `
 
 	_, err := db.Exec(query)
 	if err != nil {
-		logger.Error("Failed to initialize database schema", "error", err)
+		//no need to log since the caller will log the error, just return it here
 		return err
 	}
 

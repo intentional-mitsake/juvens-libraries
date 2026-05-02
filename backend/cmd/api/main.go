@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"juvens-library/internal/database"
 	"juvens-library/internal/routes"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,17 @@ func main() {
 	addr := fmt.Sprint(":", port)
 	router := routes.CreateRouter()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+	dbObj, err := database.OpenDB()
+	if err != nil {
+		logger.Error("Failed to open database", "error", err)
+	} else {
+		logger.Info("Database connection established")
+	}
+	defer func() {
+		if err := database.CloseDB(dbObj); err != nil {
+			logger.Error("Failed to close database", "error", err)
+		}
+	}()
 	//listenandserve only returns error, thus unless the server crashes or we shut it, this wont be
 	//displayed if its after the func
 	logger.Info("Server starting", "address", addr)
