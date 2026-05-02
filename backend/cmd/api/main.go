@@ -28,7 +28,7 @@ func main() {
 		}
 	}()
 
-	router := routes.CreateRouter()
+	router := routes.CreateRouter(dbObj)
 	//listenandserve only returns error, thus unless the server crashes or we shut it, this wont be
 	//displayed if its after the func
 	logger.Info("Server starting", "address", addr)
