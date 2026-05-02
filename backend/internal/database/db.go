@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"time"
 
 	"juvens-library/internal/config"
 	"log/slog"
@@ -78,5 +79,23 @@ func InitializeDB(db *sql.DB) error {
 	}
 
 	logger.Info("Database schema verified/created successfully")
+	return nil
+}
+
+func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, hashedSessionID string, expiry time.Time) error {
+	query := `
+		INSERT INTO users (id, email, username) 
+		VALUES ($1, $2, $3)
+		ON CONFLICT (email) DO NOTHING
+
+		INSERT INTO tokens (user_id, access_token, refresh_token, expiry, session_id)
+		VALUES ($1, $4, $5, $6, $7)
+		ON CONFLICT (session_id) DO UPDATE 
+		SET access_token = EXCLUDED.access_token, refresh_token = EXCLUDED.refresh_token, expiry = EXCLUDED.expiry
+	`
+	_, err := db.Exec(query, hashedSessionID, email, name, encAccessToken, encRefreshToken, expiry, hashedSessionID)
+	if err != nil {
+		return err
+	}
 	return nil
 }
