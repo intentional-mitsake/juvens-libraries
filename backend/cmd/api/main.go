@@ -15,7 +15,6 @@ func main() {
 		port = "8848"
 	}
 	addr := fmt.Sprint(":", port)
-	router := routes.CreateRouter()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 	dbObj, err := database.OpenDB()
 	if err != nil {
@@ -28,6 +27,8 @@ func main() {
 			logger.Error("Failed to close database", "error", err)
 		}
 	}()
+
+	router := routes.CreateRouter()
 	//listenandserve only returns error, thus unless the server crashes or we shut it, this wont be
 	//displayed if its after the func
 	logger.Info("Server starting", "address", addr)

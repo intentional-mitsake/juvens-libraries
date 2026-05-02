@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"database/sql"
 	"juvens-library/internal/auth"
 	"juvens-library/internal/services"
 	"log/slog"
@@ -11,16 +12,21 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func CreateRouter() http.Handler {
+type Router struct {
+	DB *sql.DB
+}
+
+func CreateRouter(dObj *sql.DB) http.Handler {
+	r := &Router{DB: dObj}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", indexHandler)
-	mux.HandleFunc("/auth", loginHandler)
-	mux.HandleFunc("/auth/oauth", oauthHandler)
-	mux.HandleFunc("/auth/callback", callbackHandler)
+	mux.HandleFunc("/", r.indexHandler)
+	mux.HandleFunc("/auth", r.loginHandler)
+	mux.HandleFunc("/auth/oauth", r.oauthHandler)
+	mux.HandleFunc("/auth/callback", r.callbackHandler)
 	return mux
 }
 
-func indexHandler(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) indexHandler(w http.ResponseWriter, r *http.Request) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 	//fmt.Fprintln(w, "Welcome")
 	//cookie check
@@ -39,12 +45,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func loginHandler(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) loginHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl := "../public/login.html"
 	http.ServeFile(w, r, tmpl)
 }
 
-func oauthHandler(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) oauthHandler(w http.ResponseWriter, r *http.Request) {
 	app := auth.GoogleOAuth()
 	// offline access type means we want a refresh token, which allows us to get a new access token when the old one expires without user interaction
 	url := app.Config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
@@ -53,7 +59,7 @@ func oauthHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func callbackHandler(w http.ResponseWriter, r *http.Request) {
+func (rt *Router) callbackHandler(w http.ResponseWriter, r *http.Request) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 	app := auth.GoogleOAuth()
 	// get the code from the query parameters
