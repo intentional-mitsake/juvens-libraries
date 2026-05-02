@@ -66,7 +66,7 @@ func InitializeDB(db *sql.DB) error {
         started_at TIMESTAMPTZ,
         finished_at TIMESTAMPTZ,
         rating INT DEFAULT 0 CHECK (rating >= 0 AND rating <= 5),
-        rstatus INT DEFAULT 0
+        rstatus INT DEFAULT 0,
 		PRIMARY KEY (user_id, book_id)
     );
     `
