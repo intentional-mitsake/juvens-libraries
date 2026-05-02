@@ -14,14 +14,33 @@ import (
 func CreateRouter() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", indexHandler)
+	mux.HandleFunc("/auth", loginHandler)
 	mux.HandleFunc("/auth/oauth", oauthHandler)
 	mux.HandleFunc("/auth/callback", callbackHandler)
 	return mux
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 	//fmt.Fprintln(w, "Welcome")
-	tmpl := "../public/index.html" //use diff url for prod, this is for dev
+	//cookie check
+	cookie, err := r.Cookie("session_id")
+	if err != nil || cookie.Value == "" {
+		logger.Info("Cannot find the Session ID Cookie", "session_id", err) // if its empty, err will be nil prob. not really an error so using info level log
+		// if no cookie, redirect to the login page(/auth) with a login button that redirects to /auth/oauth
+		http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
+	} else {
+		// if there is cookie, check if its valid
+		logger.Info("Session ID cookie found", "session_id", cookie)
+		/*
+			tmpl := "../public/index.html" // if cookie valid, load index page
+			http.ServeFile(w, r, tmpl)
+		*/
+	}
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	tmpl := "../public/login.html"
 	http.ServeFile(w, r, tmpl)
 }
 
