@@ -84,22 +84,38 @@ func InitializeDB(db *sql.DB) error {
 }
 
 func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, hashedSessionID string, expiry time.Time) error {
-	userquery := `
-		INSERT INTO users (email, username) 
-		VALUES ($1, $2)
-		ON CONFLICT (email) DO NOTHING;
-		`
-	tokenquery := `
-		INSERT INTO tokens (access_token, refresh_token, expiry, session_id)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (session_id) DO UPDATE 
-		SET access_token = EXCLUDED.access_token, refresh_token = EXCLUDED.refresh_token, expiry = EXCLUDED.expiry;
-	`
-	_, err := db.Exec(userquery, email, name)
+	tx, err := db.Begin()
+	// requries ACID compliance as we need to update multi tables
 	if err != nil {
 		return err
 	}
-	_, err = db.Exec(tokenquery, encAccessToken, encRefreshToken, expiry, hashedSessionID)
+	// insert info, if email already exists, DO NOTIHGN
+	// but if use DO Nothng, we cant return the id using REturning, so we use do update but since the email already exists no chagne happens
+	userquery := `
+		INSERT INTO users (email, username) 
+		VALUES ($1, $2)
+		ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+        RETURNING id;
+		`
+	// user id is gen default randmonly, but if we dont iinsert the user id in the tokens table it will be null
+	tokenquery := `
+		INSERT INTO tokens (user_id, access_token, refresh_token, expiry, session_id)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (session_id) DO UPDATE 
+		SET access_token = EXCLUDED.access_token, refresh_token = EXCLUDED.refresh_token, expiry = EXCLUDED.expiry;
+	`
+	var generatedUserID string                                       // to store the new or exsitng id
+	err = tx.QueryRow(userquery, email, name).Scan(&generatedUserID) // queeryrow as we need to get the generated id
+	if err != nil {
+		tx.Rollback() // if there is an error in the transaction, we need to rollback to maintain data integrity
+		return err
+	}
+	_, err = tx.Exec(tokenquery, generatedUserID, encAccessToken, encRefreshToken, expiry, hashedSessionID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	err = tx.Commit()
 	if err != nil {
 		return err
 	}
@@ -112,7 +128,8 @@ func ValidateSessionID(db *sql.DB, sessionID string) (bool, error) {
 		return false, err
 	}
 	var dummy int
-	query := "SELECT 1 FROM tokens WHERE session_id = $1"
+	// check if sesssion exists and is not expired
+	query := "SELECT 1 FROM tokens WHERE session_id = $1 AND expiry > NOW()"
 	err = db.QueryRow(query, hashedSessionID).Scan(&dummy)
 	if err != nil {
 		if err == sql.ErrNoRows {
