@@ -39,7 +39,13 @@ func (rt *Router) indexHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// if there is cookie, check if its valid
 		logger.Info("Session ID cookie found", "session_id", cookie)
-		valid, err := database.ValidateSessionID(rt.DB, cookie.Value)
+		hashedSessionID, err := services.HashSessionID(cookie.Value)
+		if err != nil {
+			logger.Error("Failed to hash session ID", "error", err)
+			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
+			return
+		}
+		valid, err := database.ValidateSessionID(rt.DB, hashedSessionID)
 		if err != nil { // error in validating session ID, which likely means a database error
 			logger.Error("Failed to validate session ID", "error", err)
 			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)

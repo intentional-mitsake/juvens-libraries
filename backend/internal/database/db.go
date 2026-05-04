@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"juvens-library/internal/config"
-	"juvens-library/internal/services"
 	"log/slog"
 	"os"
 
@@ -123,14 +122,10 @@ func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, h
 }
 
 func ValidateSessionID(db *sql.DB, sessionID string) (bool, error) {
-	hashedSessionID, err := services.HashSessionID(sessionID)
-	if err != nil {
-		return false, err
-	}
 	var dummy int
 	// check if sesssion exists and is not expired
 	query := "SELECT 1 FROM tokens WHERE session_id = $1 AND expiry > NOW()"
-	err = db.QueryRow(query, hashedSessionID).Scan(&dummy)
+	err := db.QueryRow(query, sessionID).Scan(&dummy)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// no match found
@@ -157,13 +152,9 @@ func UserExists(db *sql.DB, email string) (bool, error) {
 	return true, nil
 }
 
-func UpdateAccessToken(db *sql.DB, refreshToken, sessionID string) error {
-	newAccessToken, err := services.RenewAccessToken(refreshToken)
-	if err != nil {
-		return err
-	}
+func UpdateAccessToken(db *sql.DB, newAccessToken, sessionID string, expiry time.Time) error {
 	query := `UPDATE tokens SET access_token = $1, expiry = $2 WHERE session_id = $3`
-	_, err = db.Exec(query, newAccessToken.AccessToken, newAccessToken.Expiry, sessionID)
+	_, err := db.Exec(query, newAccessToken, expiry, sessionID)
 	if err != nil {
 		return err
 	}

@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"io"
 	"juvens-library/internal/auth"
+	"juvens-library/internal/database"
 	"log/slog"
 	"net/http"
 	"os"
@@ -121,7 +123,7 @@ func generateSecureID() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-func RenewAccessToken(refreshToken string) (*oauth2.Token, error) {
+func RenewAccessToken(db *sql.DB, refreshToken, sessionID string) error {
 	// refresh token is long lived, use that to get new access token and expiry
 	// when logging in, we check session id and expiry, so if either no session id or expired refresh token, no login
 	// this is for persistent login, we check session id and expiry on each request, if expired, we use the refresh token to get a new access token and expiry, and update the database with the new access token and expiry, if the refresh token is also expired, then we log the user out by deleting the session id from the database and clearing the cookie
@@ -135,7 +137,11 @@ func RenewAccessToken(refreshToken string) (*oauth2.Token, error) {
 	response := oauthConfig.Config.TokenSource(context.Background(), token)
 	newAccessToken, err := response.Token()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return newAccessToken, nil
+	err = database.UpdateAccessToken(db, newAccessToken.AccessToken, sessionID, newAccessToken.Expiry)
+	if err != nil {
+		return err
+	}
+	return nil
 }
