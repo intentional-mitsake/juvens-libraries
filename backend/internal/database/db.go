@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	"juvens-library/internal/config"
@@ -132,6 +133,7 @@ func ValidateSessionID(db *sql.DB, sessionID string) (string, time.Time, bool, e
 			return "", time.Time{}, false, nil
 		}
 	}
+	fmt.Println(refreshToken)
 	return refreshToken, expiry, true, nil
 }
 
@@ -155,6 +157,23 @@ func UpdateAccessToken(db *sql.DB, newAccessToken, sessionID string, expiry time
 	_, err := db.Exec(query, newAccessToken, expiry, sessionID)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func RevokeSession(db *sql.DB, sessionID string) error {
+	fmt.Println("Revoking session with ID:", sessionID) // Debug log to check the session ID being revoked
+	query := `DELETE FROM tokens WHERE session_id = $1`
+	res, err := db.Exec(query, sessionID)
+	if err != nil {
+		return err
+	}
+	// Check if any rows were affected
+	if rowsAffected, err := res.RowsAffected(); err != nil {
+		return err
+	} else if rowsAffected == 0 {
+		// No rows deleted, session ID not found
+		return sql.ErrNoRows
 	}
 	return nil
 }
