@@ -128,16 +128,10 @@ func ValidateSessionID(db *sql.DB, sessionID string) (string, time.Time, bool, e
 	var expiry time.Time
 	err := db.QueryRow(query, sessionID).Scan(&refreshToken, &expiry)
 	if err != nil {
-
-		/* for debugging only, there was a bug where session id from cookie was not matching the one in the database,
-		this helped see that it was not effecting any rows--> so no matching
-		no need to keep this here tho as if no rows are effected, that means there is no row to delete, so can ignore that
-		as if there was a session to delete, it would have been deleted already
 		if err == sql.ErrNoRows {
 			// no match found, session ID is not valid
 			return "", time.Time{}, false, nil
 		}
-		*/
 		return "", time.Time{}, false, err
 	}
 	fmt.Println(refreshToken)
@@ -169,12 +163,16 @@ func UpdateAccessToken(db *sql.DB, newAccessToken, sessionID string, expiry time
 }
 
 func RevokeSession(db *sql.DB, sessionID string) error {
-	fmt.Println("Revoking session with ID:", sessionID) // Debug log to check the session ID being revoked
+	//fmt.Println("Revoking session with ID:", sessionID) // Debug log to check the session ID being revoked
 	query := `DELETE FROM tokens WHERE session_id = $1`
-	res, err := db.Exec(query, sessionID)
+	_, err := db.Exec(query, sessionID)
 	if err != nil {
 		return err
 	}
+	/* for debugging only, there was a bug where session id from cookie was not matching the one in the database,
+		this helped see that it was not effecting any rows--> so no matching
+		no need to keep this here tho as if no rows are effected, that means there is no row to delete, so can ignore that
+		as if there was a session to delete, it would have been deleted already
 	// Check if any rows were affected
 	if rowsAffected, err := res.RowsAffected(); err != nil {
 		return err
@@ -182,5 +180,6 @@ func RevokeSession(db *sql.DB, sessionID string) error {
 		// No rows deleted, session ID not found
 		return sql.ErrNoRows
 	}
+	*/
 	return nil
 }
