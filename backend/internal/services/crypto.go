@@ -17,6 +17,7 @@ func EncyptToken(plaintext string, key []byte) (string, error) {
 		return "", err
 	}
 	gcm, err := cipher.NewGCM(block)
+
 	if err != nil {
 		return "", err
 	}

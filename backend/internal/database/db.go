@@ -121,20 +121,18 @@ func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, h
 	return nil
 }
 
-func ValidateSessionID(db *sql.DB, sessionID string) (bool, error) {
-	var dummy int
-	// check if sesssion exists and is not expired
-	query := "SELECT 1 FROM tokens WHERE session_id = $1 AND expiry > NOW()"
-	err := db.QueryRow(query, sessionID).Scan(&dummy)
+func ValidateSessionID(db *sql.DB, sessionID string) (string, time.Time, bool, error) {
+	query := `SELECT refresh_token, expiry FROM tokens WHERE session_id = $1`
+	var refreshToken string
+	var expiry time.Time
+	err := db.QueryRow(query, sessionID).Scan(&refreshToken, &expiry)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// no match found
-			return false, nil
+			// no match found, session ID is not valid
+			return "", time.Time{}, false, nil
 		}
-		// database error
-		return false, err
 	}
-	return true, nil
+	return refreshToken, expiry, true, nil
 }
 
 func UserExists(db *sql.DB, email string) (bool, error) {

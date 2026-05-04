@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -45,14 +46,31 @@ func (rt *Router) indexHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 			return
 		}
-		valid, err := database.ValidateSessionID(rt.DB, hashedSessionID)
+		refreshToken, expiry, exists, err := database.ValidateSessionID(rt.DB, hashedSessionID)
 		if err != nil { // error in validating session ID, which likely means a database error
 			logger.Error("Failed to validate session ID", "error", err)
 			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 			return
 		}
-		if !valid { // session ID is not valid, no db error, just means the session ID is not in the database or expired
-			logger.Info("Invalid session ID", "session_id", cookie.Value)
+		if time.Now().After(expiry) { // sessionID exists but expired
+			logger.Info("Session ID expired", "session_id", cookie.Value)
+			logger.Info("Attempting to renew access token using refresh token", "session_id", cookie.Value)
+			salt := os.Getenv("SALT")
+			decryptedRefreshToken, err := services.DecryptToken(refreshToken, []byte(salt))
+			if err != nil {
+				logger.Error("Failed to decrypt refresh token", "error", err)
+				http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
+				return
+			}
+			err = services.RenewAccessToken(rt.DB, decryptedRefreshToken, hashedSessionID)
+			if err != nil {
+				logger.Error("Failed to renew access token", "error", err)
+				http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
+				return
+			}
+			return
+		} else if !exists {
+			logger.Info("Session ID not found", "session_id", cookie.Value)
 			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 			return
 		}
