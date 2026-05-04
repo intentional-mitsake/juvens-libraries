@@ -156,3 +156,16 @@ func UserExists(db *sql.DB, email string) (bool, error) {
 	}
 	return true, nil
 }
+
+func UpdateAccessToken(db *sql.DB, refreshToken, sessionID string) error {
+	newAccessToken, err := services.RenewAccessToken(refreshToken)
+	if err != nil {
+		return err
+	}
+	query := `UPDATE tokens SET access_token = $1, expiry = $2 WHERE session_id = $3`
+	_, err = db.Exec(query, newAccessToken.AccessToken, newAccessToken.Expiry, sessionID)
+	if err != nil {
+		return err
+	}
+	return nil
+}

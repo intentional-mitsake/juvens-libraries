@@ -1,10 +1,12 @@
 package services
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"juvens-library/internal/auth"
 	"log/slog"
 	"net/http"
 	"os"
@@ -117,4 +119,23 @@ func generateSecureID() (string, error) {
 	}
 	// base64 as it encodes binary data into a string format that is safe for URLs and cookies, and it also makes the session ID shorter than if we were to encode it as hex, which would be 64 characters long for 32 bytes
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+func RenewAccessToken(refreshToken string) (*oauth2.Token, error) {
+	// refresh token is long lived, use that to get new access token and expiry
+	// when logging in, we check session id and expiry, so if either no session id or expired refresh token, no login
+	// this is for persistent login, we check session id and expiry on each request, if expired, we use the refresh token to get a new access token and expiry, and update the database with the new access token and expiry, if the refresh token is also expired, then we log the user out by deleting the session id from the database and clearing the cookie
+	// refresh token lives untill the user revokes access or changes their password
+	oauthConfig := auth.GoogleOAuth() // oauth config
+	token := &oauth2.Token{
+		// define a token struct with only the refrsh token
+		RefreshToken: refreshToken,
+	}
+	// theis returns a token source, which is an interface that has a Token() method that returns a new access token and expiry time, it automatically uses the refresh token to get a new access
+	response := oauthConfig.Config.TokenSource(context.Background(), token)
+	newAccessToken, err := response.Token()
+	if err != nil {
+		return nil, err
+	}
+	return newAccessToken, nil
 }
