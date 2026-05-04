@@ -110,6 +110,7 @@ func (rt *Router) callbackHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := app.Config.Exchange(context.Background(), code)
 	if err != nil {
 		logger.Error("Failed to exchange code for token", "error", err)
+		http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect) //if exchange fails, redirect to login
 		return
 	}
 	// token is a struct that contains the access token, refresh token, expiry time, etc.
@@ -119,6 +120,7 @@ func (rt *Router) callbackHandler(w http.ResponseWriter, r *http.Request) {
 	userinfo, err := services.ProcessTokens(token)
 	if err != nil {
 		logger.Error("Failed to process tokens", "error", err)
+		http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 		return
 	}
 	logger.Info("Session ID created")
@@ -133,20 +135,24 @@ func (rt *Router) callbackHandler(w http.ResponseWriter, r *http.Request) {
 	hashedSessionID, err := services.HashSessionID(userinfo.SessionID)
 	if err != nil {
 		logger.Error("Failed to hash session ID", "error", err)
+		http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 		return
 	}
 	olduser, err := database.UserExists(rt.DB, userinfo.Email)
 	if err != nil {
 		logger.Error("Failed to check if user exists", "error", err)
+		http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 		return
 	}
 	if !olduser {
 		//i maybe a tutorial here or a welcome message for new users, but for now we will just log it
 		logger.Info("New user logged in", "email", userinfo.Email)
+
 	}
 	err = database.InsertLoginInfo(rt.DB, userinfo.Email, userinfo.Name, userinfo.EncAccessToken, userinfo.EncRefreshToken, hashedSessionID, userinfo.Expiry)
 	if err != nil {
 		logger.Error("Failed to insert login info", "error", err)
+		http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 		return
 	}
 	// redirect the user to the home page
