@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"juvens-library/internal/config"
+	"juvens-library/internal/models"
 	"log/slog"
 	"os"
 
@@ -182,4 +183,35 @@ func RevokeSession(db *sql.DB, sessionID string) error {
 	}
 	*/
 	return nil
+}
+
+func GetUserLibrary(db *sql.DB, userID string) ([]models.UserBook, error) {
+	query := `SELECT * FROM user_books WHERE user_id = $1`
+	rows, err := db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	i := 0
+	userbooks := make([]models.UserBook, 0, 100) // prealloactes an array of size 100 with zero values
+	for rows.Next() {
+		var userbook models.UserBook
+		if err := rows.Scan(
+			&userbook.UserID,
+			&userbook.BookID,
+			&userbook.StartedAt,
+			&userbook.FinishedAt,
+			&userbook.Rating,
+			&userbook.ReadStatus,
+		); err != nil {
+			return nil, err
+		}
+		userbooks = append(userbooks, userbook)
+		i++
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return userbooks, nil
 }
