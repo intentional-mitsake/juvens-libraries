@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -20,61 +19,8 @@ type Router struct {
 }
 
 func (rt *Router) IndexHandler(w http.ResponseWriter, r *http.Request) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
-	//fmt.Fprintln(w, "Welcome")
-	//cookie check
-	cookie, err := r.Cookie("session_id")
-	// IF ERROR OR NO COOKIE, REDIRECT TO LOGIN PAGE
-	if err != nil || cookie.Value == "" {
-		logger.Info("Cannot find the Session ID Cookie", "session_id", err) // if its empty, err will be nil prob. not really an error so using info level log
-		// if no cookie, redirect to the login page(/auth) with a login button that redirects to /auth/oauth
-		http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
-	} else {
-		// IF COOKIE, VALIDATE COOKIE
-		logger.Info("Session ID cookie found", "session_id", cookie)
-		fmt.Println("Session ID from cookie:", cookie.Value)
-		hashedSessionID, err := services.HashSessionID(cookie.Value)
-		fmt.Println("Hashed Session ID:", hashedSessionID)
-		if err != nil {
-			logger.Error("Failed to hash session ID", "error", err)
-			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
-			return
-		}
-		refreshToken, expiry, exists, err := database.ValidateSessionID(rt.DB, hashedSessionID)
-		if err != nil { // error in validating session ID, which likely means a database error
-			logger.Error("Failed to validate session ID", "error", err)
-			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
-			return
-		}
-		if !exists {
-			// IF NOT EXPIRED, BUT NOT EXISTS, REDIRECT TO LOGIN
-			logger.Info("Session ID not found in DB", "session_id", cookie.Value)
-			http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
-			return
-		} else if time.Now().After(expiry) { // sessionID exists but expired
-			logger.Info("Session ID expired", "session_id", cookie.Value)
-			logger.Info("Attempting to renew access token using refresh token", "session_id", cookie.Value)
-			salt := os.Getenv("SALT")
-			//DECRYPT RTOKEN, RENEW ACCESS TOKEN, UPDATE DB, REDIRECT TO LOGIN IF ANY OF THESE STEPS FAIL, ELSE GET OUT OF IF STATEMENT
-			decryptedRefreshToken, err := services.DecryptToken(refreshToken, []byte(salt))
-			if err != nil {
-				logger.Error("Failed to decrypt refresh token", "error", err)
-				http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
-				return
-			}
-			err = services.RenewAccessToken(rt.DB, decryptedRefreshToken, hashedSessionID)
-			if err != nil {
-				logger.Error("Failed to renew access token", "error", err)
-				http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
-				return
-			}
-			return
-		}
-		// REACH HERE IF SESSION ID VALID AND NOT EXPIRED, LOAD INDEX PAGE
-		logger.Info("Valid session ID, loading index page", "session_id", cookie.Value)
-		tmpl := "../public/index.html" // if cookie valid, load index page
-		http.ServeFile(w, r, tmpl)
-	}
+	tmpl := "../public/index.html"
+	http.ServeFile(w, r, tmpl)
 }
 
 func (rt *Router) LoginHandler(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +91,7 @@ func (rt *Router) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// redirect the user to the home page
-	http.Redirect(w, r, "/", http.StatusPermanentRedirect) // redirect user to "/" after setting the cookie, the browser will include the cookie in the request to "/", so we can use it to identify the user and show them their personalized content
+	http.Redirect(w, r, "/", http.StatusTemporaryRedirect) // redirect user to "/" after setting the cookie, the browser will include the cookie in the request to "/", so we can use it to identify the user and show them their personalized content
 }
 
 func (rt *Router) LogoutHandler(w http.ResponseWriter, r *http.Request) {
@@ -156,9 +102,9 @@ func (rt *Router) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Error logging out") // writes to the resp body, appears on page
 		return
 	}
-	fmt.Println("Session ID from cookie during logout:", cookie.Value)
+	//fmt.Println("Session ID from cookie during logout:", cookie.Value)
 	hashedSessionID, err := services.HashSessionID(cookie.Value)
-	fmt.Println("Hashed session ID during logout:", hashedSessionID)
+	//fmt.Println("Hashed session ID during logout:", hashedSessionID)
 	if err != nil {
 		logger.Error("Failed to hash session ID", "error", err)
 		fmt.Fprintln(w, "Error logging out")
