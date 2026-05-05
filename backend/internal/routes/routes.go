@@ -12,10 +12,10 @@ func CreateRouter(dObj *sql.DB) http.Handler {
 	// INDEX
 	mux.Handle("/", r.SessionValidation(http.HandlerFunc(r.IndexHandler))) // _--> needs middleware-> personal user info
 	// AUTH
-	mux.HandleFunc("/auth", r.LoginHandler)
-	mux.HandleFunc("/auth/oauth", r.OauthHandler)
-	mux.HandleFunc("/auth/callback", r.CallbackHandler)
-	mux.HandleFunc("/auth/logout", r.LogoutHandler)
+	mux.HandleFunc("GET /auth", r.LoginHandler)
+	mux.HandleFunc("GET /auth/oauth", r.OauthHandler)
+	mux.HandleFunc("GET /auth/callback", r.CallbackHandler)
+	mux.HandleFunc("POST /auth/logout", r.LogoutHandler)
 	// LIBRARY
 	mux.Handle("GET /library", r.SessionValidation(http.HandlerFunc(r.LibHandler)))
 	mux.HandleFunc("POST /library/{book_id}/start", r.StartHandler)
