@@ -10,7 +10,7 @@ func CreateRouter(dObj *sql.DB) http.Handler {
 	r := &handlers.Router{DB: dObj}
 	mux := http.NewServeMux()
 	// INDEX
-	mux.HandleFunc("/", r.IndexHandler)
+	mux.Handle("/", r.SessionValidation(http.HandlerFunc(r.IndexHandler)))
 	// AUTH
 	mux.HandleFunc("/auth", r.LoginHandler)
 	mux.HandleFunc("/auth/oauth", r.OauthHandler)
