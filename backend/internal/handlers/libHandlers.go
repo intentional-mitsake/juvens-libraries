@@ -36,6 +36,7 @@ func (rt *Router) LibHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *Router) StartHandler(w http.ResponseWriter, r *http.Request) {
+
 }
 
 func (rt *Router) FinishHandler(w http.ResponseWriter, r *http.Request) {
