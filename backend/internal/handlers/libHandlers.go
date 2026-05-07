@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"juvens-library/internal/database"
+	"juvens-library/internal/services"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,11 +11,6 @@ import (
 
 func (rt *Router) LibHandler(w http.ResponseWriter, r *http.Request) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
-
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	user_id := r.URL.Query().Get("user_id")
 	if user_id == "" {
 		http.Error(w, "user_id is required", http.StatusBadRequest)
@@ -46,4 +42,15 @@ func (rt *Router) BookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *Router) SearchHandler(w http.ResponseWriter, r *http.Request) {
+	query := r.FormValue("query")
+	books, err := services.SearchBooks(query)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(books); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
