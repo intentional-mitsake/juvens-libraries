@@ -139,7 +139,14 @@ func RenewAccessToken(db *sql.DB, refreshToken, sessionID string) error {
 	if err != nil {
 		return err
 	}
-	err = database.UpdateAccessToken(db, newAccessToken.AccessToken, sessionID, newAccessToken.Expiry)
+	newSessionExpiry := time.Now().Add(24 * time.Hour)
+	err = database.UpdateSessionState(
+		db,
+		sessionID,
+		newAccessToken.AccessToken,
+		newAccessToken.Expiry,
+		newSessionExpiry,
+	)
 	if err != nil {
 		return err
 	}

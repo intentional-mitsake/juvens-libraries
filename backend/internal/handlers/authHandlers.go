@@ -84,7 +84,7 @@ func (rt *Router) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		logger.Info("New user logged in", "email", userinfo.Email)
 
 	}
-	err = database.InsertLoginInfo(rt.DB, userinfo.Email, userinfo.Name, userinfo.EncAccessToken, userinfo.EncRefreshToken, hashedSessionID, userinfo.Expiry)
+	err = database.InsertLoginInfo(rt.DB, userinfo.Email, userinfo.Name, userinfo.EncAccessToken, userinfo.EncRefreshToken, hashedSessionID, userinfo.Expiry, userinfo.Expiry.Add(86400))
 	if err != nil {
 		logger.Error("Failed to insert login info", "error", err)
 		http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)

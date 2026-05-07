@@ -124,20 +124,21 @@ func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, h
 	return nil
 }
 
-func ValidateSessionID(db *sql.DB, sessionID string) (string, time.Time, bool, error) {
-	query := `SELECT refresh_token, session_expiry FROM tokens WHERE session_id = $1`
+func ValidateSessionID(db *sql.DB, sessionID string) (string, time.Time, time.Time, bool, error) {
+	query := `SELECT refresh_token, session_expiry, token_expiry FROM tokens WHERE session_id = $1`
 	var refreshToken string
 	var session_expiry time.Time
-	err := db.QueryRow(query, sessionID).Scan(&refreshToken, &session_expiry)
+	var token_expiry time.Time
+	err := db.QueryRow(query, sessionID).Scan(&refreshToken, &session_expiry, &token_expiry)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// no match found, session ID is not valid
-			return "", time.Time{}, false, nil
+			return "", time.Time{}, time.Time{}, false, nil
 		}
-		return "", time.Time{}, false, err
+		return "", time.Time{}, time.Time{}, false, err
 	}
 	fmt.Println(refreshToken)
-	return refreshToken, session_expiry, true, nil
+	return refreshToken, session_expiry, token_expiry, true, nil
 }
 
 func UserExists(db *sql.DB, email string) (bool, error) {
@@ -155,22 +156,17 @@ func UserExists(db *sql.DB, email string) (bool, error) {
 	return true, nil
 }
 
-func UpdateAccessToken(db *sql.DB, newAccessToken, sessionID string, token_expiry time.Time) error {
-	query := `UPDATE tokens SET access_token = $1, token_expiry = $2 WHERE session_id = $3`
-	_, err := db.Exec(query, newAccessToken, token_expiry, sessionID)
-	if err != nil {
-		return err
-	}
-	return nil
-}
+func UpdateSessionState(db *sql.DB, sessionID, accessToken string, tokenExpiry, sessionExpiry time.Time) error {
+	// We update everything in one go: the key, the short life, and the long life.
+	query := `
+        UPDATE tokens 
+        SET access_token = $1, 
+            token_expiry = $2, 
+            session_expiry = $3 
+        WHERE session_id = $4`
 
-func UpdateSession(db *sql.DB, newAccessToken, sessionID string, session_expiry time.Time) error {
-	query := `UPDATE tokens SET access_token = $1, token_expiry = $2 WHERE session_id = $3`
-	_, err := db.Exec(query, newAccessToken, session_expiry, sessionID)
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := db.Exec(query, accessToken, tokenExpiry, sessionExpiry, sessionID)
+	return err
 }
 
 func RevokeSession(db *sql.DB, sessionID string) error {

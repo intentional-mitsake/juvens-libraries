@@ -29,10 +29,11 @@ func (rt *Router) SessionValidation(next http.Handler) http.Handler {
 			//fmt.Println("Hashed Session ID:", hashedSessionID)
 			if err != nil {
 				logger.Error("Failed to hash session ID", "error", err)
+				rt.clearAuthCookies(w)
 				http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 				return
 			}
-			refreshToken, expiry, exists, err := database.ValidateSessionID(rt.DB, hashedSessionID)
+			refreshToken, session_expiry, token_expiry, exists, err := database.ValidateSessionID(rt.DB, hashedSessionID)
 			if err != nil { // error in validating session ID, which likely means a database error
 				logger.Error("Failed to validate session ID", "error", err)
 				http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
@@ -41,10 +42,22 @@ func (rt *Router) SessionValidation(next http.Handler) http.Handler {
 			if !exists {
 				// IF NOT EXPIRED, BUT NOT EXISTS, REDIRECT TO LOGIN
 				logger.Info("Session ID not found in DB", "session_id", cookie.Value)
+				rt.clearAuthCookies(w)
 				http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 				return
-			} else if time.Now().After(expiry) { // sessionID exists but expired
+			}
+
+			// SESSION EXPIRED-->REDIRECT TO LOGIN
+			if time.Now().After(session_expiry) {
 				logger.Info("Session ID expired", "session_id", cookie.Value)
+				rt.clearAuthCookies(w)
+				http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
+				return
+			}
+
+			// TOKEN EXPIRED->RENEW
+			if time.Now().After(token_expiry) {
+				logger.Info("Access Token expired", "session_id", cookie.Value)
 				logger.Info("Attempting to renew access token using refresh token", "session_id", cookie.Value)
 				salt := os.Getenv("SALT")
 				//DECRYPT RTOKEN, RENEW ACCESS TOKEN, UPDATE DB, REDIRECT TO LOGIN IF ANY OF THESE STEPS FAIL, ELSE GET OUT OF IF STATEMENT
@@ -60,11 +73,28 @@ func (rt *Router) SessionValidation(next http.Handler) http.Handler {
 					http.Redirect(w, r, "/auth", http.StatusTemporaryRedirect)
 					return
 				}
-				return
+				rt.syncRollingCookies(w, cookie.Value)
 			}
 			// REACH HERE IF SESSION ID VALID AND NOT EXPIRED, REDIRECT TO NEXT HANDLER
 			logger.Info("Valid session ID, loading index page", "session_id", cookie.Value)
 			next.ServeHTTP(w, r)
 		}
+	})
+}
+
+// Kill the cookies
+func (rt *Router) clearAuthCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{Name: "session_id", MaxAge: -1, Path: "/"})
+	http.SetCookie(w, &http.Cookie{Name: "is_logged_in", MaxAge: -1, Path: "/"})
+}
+
+// Reset the 24h timer
+func (rt *Router) syncRollingCookies(w http.ResponseWriter, sessionVal string) {
+	day := 86400
+	http.SetCookie(w, &http.Cookie{
+		Name: "session_id", Value: sessionVal, Path: "/", HttpOnly: true, MaxAge: day,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name: "is_logged_in", Value: "true", Path: "/", HttpOnly: false, MaxAge: day,
 	})
 }
