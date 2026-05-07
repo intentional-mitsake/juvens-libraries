@@ -53,8 +53,9 @@ func InitializeDB(db *sql.DB) error {
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
         access_token TEXT NOT NULL,
         refresh_token TEXT NOT NULL,
-        expiry TIMESTAMPTZ NOT NULL,
-        session_id TEXT PRIMARY KEY
+        token_expiry TIMESTAMPTZ NOT NULL,
+        session_id TEXT PRIMARY KEY,
+		session_expiry TIMESTAMPTZ NOT NULL,
     );
 
     CREATE TABLE IF NOT EXISTS books (
@@ -84,7 +85,7 @@ func InitializeDB(db *sql.DB) error {
 	return nil
 }
 
-func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, hashedSessionID string, expiry time.Time) error {
+func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, hashedSessionID string, token_expiry, session_expiry time.Time) error {
 	tx, err := db.Begin()
 	// requries ACID compliance as we need to update multi tables
 	if err != nil {
@@ -100,8 +101,8 @@ func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, h
 		`
 	// user id is gen default randmonly, but if we dont iinsert the user id in the tokens table it will be null
 	tokenquery := `
-		INSERT INTO tokens (user_id, access_token, refresh_token, expiry, session_id)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO tokens (user_id, access_token, refresh_token, token_expiry, session_id, session_expiry)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (session_id) DO UPDATE 
 		SET access_token = EXCLUDED.access_token, refresh_token = EXCLUDED.refresh_token, expiry = EXCLUDED.expiry;
 	`
@@ -111,7 +112,7 @@ func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, h
 		tx.Rollback() // if there is an error in the transaction, we need to rollback to maintain data integrity
 		return err
 	}
-	_, err = tx.Exec(tokenquery, generatedUserID, encAccessToken, encRefreshToken, expiry, hashedSessionID)
+	_, err = tx.Exec(tokenquery, generatedUserID, encAccessToken, encRefreshToken, token_expiry, hashedSessionID, session_expiry)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -124,10 +125,10 @@ func InsertLoginInfo(db *sql.DB, email, name, encAccessToken, encRefreshToken, h
 }
 
 func ValidateSessionID(db *sql.DB, sessionID string) (string, time.Time, bool, error) {
-	query := `SELECT refresh_token, expiry FROM tokens WHERE session_id = $1`
+	query := `SELECT refresh_token, session_expiry FROM tokens WHERE session_id = $1`
 	var refreshToken string
-	var expiry time.Time
-	err := db.QueryRow(query, sessionID).Scan(&refreshToken, &expiry)
+	var session_expiry time.Time
+	err := db.QueryRow(query, sessionID).Scan(&refreshToken, &session_expiry)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// no match found, session ID is not valid
@@ -136,7 +137,7 @@ func ValidateSessionID(db *sql.DB, sessionID string) (string, time.Time, bool, e
 		return "", time.Time{}, false, err
 	}
 	fmt.Println(refreshToken)
-	return refreshToken, expiry, true, nil
+	return refreshToken, session_expiry, true, nil
 }
 
 func UserExists(db *sql.DB, email string) (bool, error) {
@@ -154,9 +155,18 @@ func UserExists(db *sql.DB, email string) (bool, error) {
 	return true, nil
 }
 
-func UpdateAccessToken(db *sql.DB, newAccessToken, sessionID string, expiry time.Time) error {
-	query := `UPDATE tokens SET access_token = $1, expiry = $2 WHERE session_id = $3`
-	_, err := db.Exec(query, newAccessToken, expiry, sessionID)
+func UpdateAccessToken(db *sql.DB, newAccessToken, sessionID string, token_expiry time.Time) error {
+	query := `UPDATE tokens SET access_token = $1, token_expiry = $2 WHERE session_id = $3`
+	_, err := db.Exec(query, newAccessToken, token_expiry, sessionID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func UpdateSession(db *sql.DB, newAccessToken, sessionID string, session_expiry time.Time) error {
+	query := `UPDATE tokens SET access_token = $1, token_expiry = $2 WHERE session_id = $3`
+	_, err := db.Exec(query, newAccessToken, session_expiry, sessionID)
 	if err != nil {
 		return err
 	}

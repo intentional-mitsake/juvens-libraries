@@ -9,11 +9,12 @@ type User struct {
 }
 
 type Token struct {
-	UserID       string    `json:"user_id"`
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	Expiry       time.Time `json:"expiry"`
-	SessionID    string    `json:"session_id"`
+	UserID        string    `json:"user_id"`
+	AccessToken   string    `json:"access_token"`
+	RefreshToken  string    `json:"refresh_token"`
+	TokenExpiry   time.Time `json:"token_expiry"`
+	SessionID     string    `json:"session_id"`
+	SessionExpiry time.Time `json:"session_expiry"`
 }
 type Book struct {
 	ID     string `json:"id"`
